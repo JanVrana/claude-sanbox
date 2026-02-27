@@ -1,6 +1,12 @@
 FROM node:20
 
-# Základní nástroje
+# GitHub CLI repo
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+      -o /usr/share/keyrings/githubcli-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+      > /etc/apt/sources.list.d/github-cli.list
+
+# Základní nástroje + CLI utility pro Claude Code
 RUN apt-get update && apt-get install -y \
   git \
   openssh-client \
@@ -11,7 +17,19 @@ RUN apt-get update && apt-get install -y \
   build-essential \
   python3 \
   python3-pip \
+  gosu \
+  rsync \
+  gh \
+  ripgrep \
+  fd-find \
+  tree \
+  less \
+  zip \
+  sqlite3 \
   && rm -rf /var/lib/apt/lists/*
+
+# fdfind → fd symlink (Debian balíček se jmenuje fd-find)
+RUN ln -s $(which fdfind) /usr/local/bin/fd
 
 # Go (latest stable)
 RUN curl -fsSL https://go.dev/dl/go1.23.6.linux-amd64.tar.gz | tar -C /usr/local -xz
@@ -39,5 +57,8 @@ RUN npm i -g \
 # Claude Code
 RUN npm i -g @anthropic-ai/claude-code
 
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
 WORKDIR /work
-ENTRYPOINT ["claude", "--dangerously-skip-permissions"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

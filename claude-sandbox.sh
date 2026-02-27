@@ -72,8 +72,10 @@ fi
 # Sestav docker argumenty
 DOCKER_ARGS=(
   -it --rm
-  --user "$(id -u):$(id -g)"
-  -e HOME="$HOME_DIR"
+  -e HOST_UID="$(id -u)"
+  -e HOST_GID="$(id -g)"
+  -e HOST_USER="$(id -un)"
+  -e HOST_HOME="$HOME_DIR"
   -e GOPATH="$HOME_DIR/go"
   -e PATH="$HOME_DIR/go/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   --tmpfs "$HOME_DIR":uid="$(id -u)"
@@ -161,8 +163,10 @@ if [ "$GIT_ENABLED" = "1" ] && [ -d "$PROJECT_DIR/.git" ]; then
         SUGGESTED_MSG=$(git diff --stat 2>/dev/null; git diff --cached --stat 2>/dev/null; git ls-files --others --exclude-standard 2>/dev/null)
         SUGGESTED_MSG=$(echo "$SUGGESTED_MSG" | head -20)
         AUTO_MSG=$(docker run --rm \
-          --user "$(id -u):$(id -g)" \
-          -e HOME="$HOME_DIR" \
+          -e HOST_UID="$(id -u)" \
+          -e HOST_GID="$(id -g)" \
+          -e HOST_USER="$(id -un)" \
+          -e HOST_HOME="$HOME_DIR" \
           --tmpfs "$HOME_DIR":uid="$(id -u)" \
           -v ~/.claude:"$HOME_DIR/.claude" \
           -v ~/.claude.json:"$HOME_DIR/.claude.json" \
@@ -186,8 +190,10 @@ if [ "$GIT_ENABLED" = "1" ] && [ -d "$PROJECT_DIR/.git" ]; then
             echo "🤖 Generuji commit message..."
             SUGGESTED_MSG=$(git diff --stat 2>/dev/null | head -20)
             AUTO_MSG=$(docker run --rm \
-              --user "$(id -u):$(id -g)" \
-              -e HOME="$HOME_DIR" \
+              -e HOST_UID="$(id -u)" \
+              -e HOST_GID="$(id -g)" \
+              -e HOST_USER="$(id -un)" \
+              -e HOST_HOME="$HOME_DIR" \
               --tmpfs "$HOME_DIR":uid="$(id -u)" \
               -v ~/.claude:"$HOME_DIR/.claude" \
               -v ~/.claude.json:"$HOME_DIR/.claude.json" \
