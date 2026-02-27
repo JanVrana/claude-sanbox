@@ -16,7 +16,7 @@
 set -euo pipefail
 
 PROJECT_DIR="$(pwd)"
-HOME_DIR="/home/claude"
+HOME_DIR="$HOME"
 SANDBOX_DATA="$HOME/.claude-sandbox"
 
 # Konfigurace s výchozími hodnotami
