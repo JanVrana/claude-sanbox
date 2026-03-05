@@ -6,12 +6,12 @@ HOST_GID="${HOST_GID:-1000}"
 HOST_USER="${HOST_USER:-claude}"
 HOST_HOME="${HOST_HOME:-/home/$HOST_USER}"
 
-# Vytvoř skupinu pokud neexistuje
+# Create group if it doesn't exist
 if ! getent group "$HOST_GID" >/dev/null 2>&1; then
   groupadd -g "$HOST_GID" "$HOST_USER"
 fi
 
-# Vytvoř uživatele nebo uprav existujícího (node UID 1000)
+# Create user or modify existing one (node UID 1000)
 EXISTING=$(getent passwd "$HOST_UID" | cut -d: -f1 || true)
 if [ -z "$EXISTING" ]; then
   useradd -u "$HOST_UID" -g "$HOST_GID" -d "$HOST_HOME" -s /bin/bash -M "$HOST_USER"

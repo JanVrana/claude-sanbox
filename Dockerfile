@@ -6,7 +6,7 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
       > /etc/apt/sources.list.d/github-cli.list
 
-# Základní nástroje + CLI utility pro Claude Code
+# Base tools + CLI utilities for Claude Code
 RUN apt-get update && apt-get install -y \
   git \
   openssh-client \
@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y \
   sqlite3 \
   && rm -rf /var/lib/apt/lists/*
 
-# fdfind → fd symlink (Debian balíček se jmenuje fd-find)
+# fdfind → fd symlink (Debian package is named fd-find)
 RUN ln -s $(which fdfind) /usr/local/bin/fd
 
 # Go (latest stable)
@@ -37,7 +37,7 @@ ENV PATH="/usr/local/go/bin:/root/go/bin:${PATH}"
 ENV GOPATH="/usr/local/gotools"
 ENV PATH="${GOPATH}/bin:${PATH}"
 
-# Běžné Go nástroje (instalace do sdíleného adresáře)
+# Common Go tools (installed to shared directory)
 RUN mkdir -p "$GOPATH" && \
     go install golang.org/x/tools/gopls@latest && \
     go install github.com/go-delve/delve/cmd/dlv@latest && \
@@ -45,7 +45,7 @@ RUN mkdir -p "$GOPATH" && \
     go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest && \
     chmod -R 755 "$GOPATH"
 
-# Node.js globální nástroje
+# Node.js global tools
 RUN npm i -g \
   typescript \
   ts-node \
