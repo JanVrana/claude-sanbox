@@ -20,5 +20,10 @@ else
 fi
 
 export HOME="$HOST_HOME"
+export PATH="$HOST_HOME/.local/bin:$PATH"
+
+# Update Claude Code to latest version
+echo "Hledají se aktualizace Claude Code..."
+npm update -g @anthropic-ai/claude-code 2>/dev/null && echo "Aktualizace dokončena." || echo "Aktualizace se nezdařila, používám stávající verzi."
 
 exec gosu "$HOST_UID" claude --dangerously-skip-permissions "$@"

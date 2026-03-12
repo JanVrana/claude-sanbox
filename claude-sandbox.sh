@@ -112,7 +112,7 @@ DOCKER_ARGS=(
   -w "$PROJECT_DIR"
 
   # Example: mounting local directories (read-only):
-  # -v /mnt:/mnt:ro
+  #  -v /mnt:/mnt:ro
 )
 
 # SSH - mount keys and agent if available
