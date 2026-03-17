@@ -86,6 +86,7 @@ claude-sandbox -p "create a REST API for user management"
 | `CLAUDE_MEMORY` | `8g` | Container RAM limit |
 | `CLAUDE_CPUS` | `4` | Container CPU limit |
 | `CLAUDE_GIT` | `1` | Git safety net: `1` enabled, `0` disabled |
+| `CLAUDE_MOUNTS` | _(empty)_ | Extra bind mounts, comma-separated (see below) |
 
 ```bash
 # Fully offline sandbox
@@ -100,6 +101,23 @@ CLAUDE_GIT=0 claude-sandbox
 # Combine options
 CLAUDE_GIT=0 CLAUDE_NETWORK=none CLAUDE_MEMORY=4g claude-sandbox
 ```
+
+### Mounting custom directories
+
+By default, only the current project directory is mounted into the container. Use `CLAUDE_MOUNTS` to make additional host directories available — for example shared data, reference repos, or datasets.
+
+```bash
+# Mount a single directory (read-only)
+CLAUDE_MOUNTS="/data/shared:/data/shared:ro" claude-sandbox
+
+# Mount multiple directories (comma-separated)
+CLAUDE_MOUNTS="/data/datasets:/data/datasets:ro,/mnt/reference:/mnt/reference:ro" claude-sandbox
+
+# Read-write mount (use with caution — Claude can modify files)
+CLAUDE_MOUNTS="/data/output:/data/output" claude-sandbox
+```
+
+Each entry follows the standard Docker bind-mount syntax: `host_path:container_path[:options]`. Use `:ro` for read-only access whenever possible to prevent unintended modifications.
 
 ### Changing defaults
 

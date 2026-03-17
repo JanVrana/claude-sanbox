@@ -12,6 +12,8 @@
 #   CLAUDE_MEMORY=8g            # default: 8g
 #   CLAUDE_CPUS=4               # default: 4
 #   CLAUDE_GIT=1|0              # default: 1 (git safety net enabled)
+#   CLAUDE_MOUNTS="/data:/data:ro,/mnt/shared:/mnt/shared"
+#                               # extra bind mounts (comma-separated)
 
 set -euo pipefail
 
@@ -111,9 +113,16 @@ DOCKER_ARGS=(
   -v "$PROJECT_DIR":"$PROJECT_DIR"
   -w "$PROJECT_DIR"
 
-  # Example: mounting local directories (read-only):
-  #  -v /mnt:/mnt:ro
 )
+
+# Extra user-defined mounts (comma-separated, e.g. "/data:/data:ro,/mnt:/mnt")
+if [ -n "${CLAUDE_MOUNTS:-}" ]; then
+  IFS=',' read -ra MOUNTS <<< "$CLAUDE_MOUNTS"
+  for mount in "${MOUNTS[@]}"; do
+    mount="$(echo "$mount" | xargs)"  # trim whitespace
+    [ -n "$mount" ] && DOCKER_ARGS+=(-v "$mount")
+  done
+fi
 
 # SSH - mount keys and agent if available
 if [ -d ~/.ssh ]; then

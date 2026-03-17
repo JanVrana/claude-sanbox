@@ -85,6 +85,7 @@ claude-sandbox -p "vytvoř REST API pro správu uživatelů"
 | `CLAUDE_MEMORY` | `8g` | Limit RAM pro kontejner |
 | `CLAUDE_CPUS` | `4` | Limit CPU jader |
 | `CLAUDE_GIT` | `1` | Git safety net: `1` zapnuto, `0` vypnuto |
+| `CLAUDE_MOUNTS` | _(prázdné)_ | Extra bind mounty, oddělené čárkou (viz níže) |
 
 ```bash
 # Bez sítě (úplný sandbox)
@@ -99,6 +100,23 @@ CLAUDE_GIT=0 claude-sandbox
 # Kombinace
 CLAUDE_GIT=0 CLAUDE_NETWORK=none CLAUDE_MEMORY=4g claude-sandbox
 ```
+
+### Mountování vlastních adresářů
+
+Ve výchozím stavu se do kontejneru mountuje pouze aktuální projektový adresář. Pomocí `CLAUDE_MOUNTS` můžeš zpřístupnit další adresáře z hostu — např. sdílená data, referenční repozitáře nebo datasety.
+
+```bash
+# Připojit jeden adresář (read-only)
+CLAUDE_MOUNTS="/data/shared:/data/shared:ro" claude-sandbox
+
+# Připojit více adresářů (oddělené čárkou)
+CLAUDE_MOUNTS="/data/datasety:/data/datasety:ro,/mnt/reference:/mnt/reference:ro" claude-sandbox
+
+# Read-write mount (pozor — Claude může soubory měnit)
+CLAUDE_MOUNTS="/data/output:/data/output" claude-sandbox
+```
+
+Každý záznam odpovídá standardní Docker bind-mount syntaxi: `cesta_na_hostu:cesta_v_kontejneru[:volby]`. Pokud je to možné, používej `:ro` pro read-only přístup, aby nedošlo k nechtěným úpravám.
 
 ### Výchozí hodnoty
 
