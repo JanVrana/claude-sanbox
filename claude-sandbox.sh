@@ -85,6 +85,14 @@ if [ "$GIT_ENABLED" = "1" ]; then
     TIMESTAMP=$(date +%Y%m%d_%H%M%S)
     WORKTREE_BRANCH="claude-sandbox/$TIMESTAMP"
     git worktree add "$WORKTREE_DIR" -b "$WORKTREE_BRANCH"
+
+    # Copy uncommitted changes (modified, staged, untracked) into the worktree
+    if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+      echo "📋 Copying uncommitted changes to worktree..."
+      rsync -a --exclude='.git' --exclude='.claude-worktree' "$PROJECT_DIR/" "$WORKTREE_DIR/"
+      echo "✅ Uncommitted changes included in worktree."
+    fi
+
     echo "🌿 Worktree created: .claude-worktree (branch: $WORKTREE_BRANCH)"
   fi
 else
