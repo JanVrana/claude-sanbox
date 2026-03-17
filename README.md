@@ -103,6 +103,7 @@ claude-sandbox -p "create a REST API for user management"
 | `CLAUDE_CPUS` | `4` | Container CPU limit |
 | `CLAUDE_GIT` | `1` | Git safety net: `1` enabled, `0` disabled |
 | `CLAUDE_DENY_GIT` | `0` | Deny git write operations inside container: `1` deny, `0` allow |
+| `CLAUDE_SSH` | `0` | SSH agent forwarding: `1` enable (allows git push), `0` disable |
 | `CLAUDE_MOUNTS` | _(empty)_ | Extra bind mounts, comma-separated (see below) |
 
 ```bash
@@ -190,14 +191,22 @@ claude-sandbox -p "create a React app and start the dev server"
 
 ## SSH and GitHub
 
-To enable git push/pull over SSH, start the SSH agent on your host:
+SSH agent forwarding is **disabled by default** for security — the sandbox runs with `--dangerously-skip-permissions`, so Claude would have unrestricted access to your SSH keys. Enable it only when needed:
+
+```bash
+# Enable SSH for this session
+CLAUDE_SSH=1 claude-sandbox
+
+# Or enable permanently in config
+# Edit ~/.claude-sandbox/config → CLAUDE_SSH="1"
+```
+
+Make sure the SSH agent is running on your host:
 
 ```bash
 eval "$(ssh-agent -s)"
 ssh-add ~/.ssh/id_ed25519
 ```
-
-The sandbox automatically forwards the SSH agent into the container.
 
 ## What's Inside the Container
 

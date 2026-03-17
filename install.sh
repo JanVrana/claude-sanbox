@@ -186,6 +186,7 @@ configure_sandbox() {
   local cfg_cpus="4"
   local cfg_git="1"
   local cfg_deny_git="0"
+  local cfg_ssh="0"
   local cfg_mounts=""
 
   if [ -f "$CONFIG_FILE" ]; then
@@ -196,6 +197,7 @@ configure_sandbox() {
     cfg_cpus="${CLAUDE_CPUS:-$cfg_cpus}"
     cfg_git="${CLAUDE_GIT:-$cfg_git}"
     cfg_deny_git="${CLAUDE_DENY_GIT:-$cfg_deny_git}"
+    cfg_ssh="${CLAUDE_SSH:-$cfg_ssh}"
     cfg_mounts="${CLAUDE_MOUNTS:-$cfg_mounts}"
   fi
 
@@ -261,9 +263,22 @@ configure_sandbox() {
     warn "     Invalid value. Enter 1 or 0."
   done
 
+  # --- SSH agent forwarding ---
+  echo ""
+  echo "  6) SSH agent forwarding"
+  echo "     1 = forward SSH keys and agent into container (allows git push)"
+  echo "     0 = no SSH access (more secure)"
+  echo ""
+  while true; do
+    prompt "     SSH forwarding [1/0] (current: $cfg_ssh): " input
+    input="${input:-$cfg_ssh}"
+    if [[ "$input" =~ ^[01]$ ]]; then cfg_ssh="$input"; break; fi
+    warn "     Invalid value. Enter 1 or 0."
+  done
+
   # --- Extra mounts ---
   echo ""
-  echo "  6) Extra bind mounts (optional)"
+  echo "  7) Extra bind mounts (optional)"
   echo "     Comma-separated, e.g.: /data/shared:/data/shared:ro,/mnt:/mnt"
   echo "     Leave empty for none."
   echo ""
@@ -282,6 +297,7 @@ configure_sandbox() {
     echo "CLAUDE_CPUS=\"$cfg_cpus\""
     echo "CLAUDE_GIT=\"$cfg_git\""
     echo "CLAUDE_DENY_GIT=\"$cfg_deny_git\""
+    echo "CLAUDE_SSH=\"$cfg_ssh\""
     echo "CLAUDE_MOUNTS=\"$cfg_mounts\""
   } > "$CONFIG_FILE"
 
@@ -296,6 +312,7 @@ configure_sandbox() {
   echo "  │  CPUs:          $cfg_cpus"
   echo "  │  Git safety:    $([ "$cfg_git" = "1" ] && echo "enabled" || echo "disabled")"
   echo "  │  Deny git:      $([ "$cfg_deny_git" = "1" ] && echo "yes" || echo "no")"
+  echo "  │  SSH forward:   $([ "$cfg_ssh" = "1" ] && echo "on" || echo "off")"
   echo "  │  Extra mounts:  ${cfg_mounts:-none}"
   echo "  └────────────────────────────────────┘"
 }

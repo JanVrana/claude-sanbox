@@ -13,6 +13,7 @@
 #   CLAUDE_CPUS=4               # default: 4
 #   CLAUDE_GIT=1|0              # default: 1 (git safety net enabled)
 #   CLAUDE_DENY_GIT=1|0          # default: 0 (deny git write operations)
+#   CLAUDE_SSH=1|0              # default: 0 (SSH agent forwarding disabled)
 #   CLAUDE_MOUNTS="/data:/data:ro,/mnt/shared:/mnt/shared"
 #                               # extra bind mounts (comma-separated)
 
@@ -30,6 +31,7 @@ if [ -f "$SANDBOX_DATA/config" ]; then
   [ -n "${CLAUDE_CPUS+x}" ]     && _user_cpus="$CLAUDE_CPUS"
   [ -n "${CLAUDE_GIT+x}" ]      && _user_git="$CLAUDE_GIT"
   [ -n "${CLAUDE_DENY_GIT+x}" ] && _user_deny_git="$CLAUDE_DENY_GIT"
+  [ -n "${CLAUDE_SSH+x}" ]      && _user_ssh="$CLAUDE_SSH"
   [ -n "${CLAUDE_MOUNTS+x}" ]   && _user_mounts="$CLAUDE_MOUNTS"
 
   # shellcheck disable=SC1091
@@ -41,8 +43,9 @@ if [ -f "$SANDBOX_DATA/config" ]; then
   [ -n "${_user_cpus+x}" ]     && CLAUDE_CPUS="$_user_cpus"
   [ -n "${_user_git+x}" ]      && CLAUDE_GIT="$_user_git"
   [ -n "${_user_deny_git+x}" ] && CLAUDE_DENY_GIT="$_user_deny_git"
+  [ -n "${_user_ssh+x}" ]      && CLAUDE_SSH="$_user_ssh"
   [ -n "${_user_mounts+x}" ]   && CLAUDE_MOUNTS="$_user_mounts"
-  unset _user_network _user_memory _user_cpus _user_git _user_deny_git _user_mounts 2>/dev/null || true
+  unset _user_network _user_memory _user_cpus _user_git _user_deny_git _user_ssh _user_mounts 2>/dev/null || true
 fi
 
 # Configuration with defaults (env > config > hardcoded)
@@ -50,6 +53,7 @@ NETWORK="${CLAUDE_NETWORK:-host}"
 MEMORY="${CLAUDE_MEMORY:-8g}"
 CPUS="${CLAUDE_CPUS:-4}"
 GIT_ENABLED="${CLAUDE_GIT:-1}"
+SSH_ENABLED="${CLAUDE_SSH:-0}"
 
 # Create local directories if they don't exist
 mkdir -p ~/.claude ~/.config ~/.local
@@ -171,20 +175,24 @@ if [ -n "${CLAUDE_MOUNTS:-}" ]; then
   done
 fi
 
-# SSH - mount keys and agent if available
-if [ -d ~/.ssh ]; then
-  DOCKER_ARGS+=(-v ~/.ssh:"$HOME_DIR/.ssh":ro)
-  # Known hosts needs write access
-  [ -f ~/.ssh/known_hosts ] && DOCKER_ARGS+=(-v ~/.ssh/known_hosts:"$HOME_DIR/.ssh/known_hosts")
-fi
-if [ -n "${SSH_AUTH_SOCK:-}" ]; then
-  DOCKER_ARGS+=(-v "$SSH_AUTH_SOCK":/tmp/ssh-agent.sock -e SSH_AUTH_SOCK=/tmp/ssh-agent.sock)
+# SSH - mount keys and agent only when explicitly enabled (CLAUDE_SSH=1)
+if [ "$SSH_ENABLED" = "1" ]; then
+  if [ -d ~/.ssh ]; then
+    DOCKER_ARGS+=(-v ~/.ssh:"$HOME_DIR/.ssh":ro)
+    # Known hosts needs write access
+    [ -f ~/.ssh/known_hosts ] && DOCKER_ARGS+=(-v ~/.ssh/known_hosts:"$HOME_DIR/.ssh/known_hosts")
+  fi
+  if [ -n "${SSH_AUTH_SOCK:-}" ]; then
+    DOCKER_ARGS+=(-v "$SSH_AUTH_SOCK":/tmp/ssh-agent.sock -e SSH_AUTH_SOCK=/tmp/ssh-agent.sock)
+  fi
 fi
 
 GIT_STATUS="enabled"
 [ "$GIT_ENABLED" != "1" ] && GIT_STATUS="disabled"
 DENY_GIT_STATUS="off"
 [ "${CLAUDE_DENY_GIT:-0}" = "1" ] && DENY_GIT_STATUS="on"
+SSH_STATUS="off"
+[ "$SSH_ENABLED" = "1" ] && SSH_STATUS="on"
 
 WORKTREE_INFO=""
 [ -n "$WORKTREE_BRANCH" ] && WORKTREE_INFO=" (branch: $WORKTREE_BRANCH)"
@@ -198,6 +206,7 @@ echo "║ Memory:   $MEMORY | CPU: $CPUS"
 echo "║ Cache:    $SANDBOX_DATA"
 echo "║ Git:      $GIT_STATUS"
 echo "║ Deny git: $DENY_GIT_STATUS"
+echo "║ SSH:      $SSH_STATUS"
 [ -n "$WORKTREE_BRANCH" ] && echo "║ Worktree: .claude-worktree$WORKTREE_INFO"
 echo "╚══════════════════════════════════════╝"
 

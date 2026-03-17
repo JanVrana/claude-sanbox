@@ -102,6 +102,7 @@ claude-sandbox -p "vytvoř REST API pro správu uživatelů"
 | `CLAUDE_CPUS` | `4` | Limit CPU jader |
 | `CLAUDE_GIT` | `1` | Git safety net: `1` zapnuto, `0` vypnuto |
 | `CLAUDE_DENY_GIT` | `0` | Zakáže git zápisy v kontejneru: `1` zakázat, `0` povolit |
+| `CLAUDE_SSH` | `0` | SSH agent forwarding: `1` zapnout (umožní git push), `0` vypnout |
 | `CLAUDE_MOUNTS` | _(prázdné)_ | Extra bind mounty, oddělené čárkou (viz níže) |
 
 ```bash
@@ -189,14 +190,22 @@ claude-sandbox -p "vytvoř React aplikaci a spusť dev server"
 
 ## SSH a GitHub
 
-Pro git push/pull přes SSH spusť na hostu SSH agenta:
+SSH agent forwarding je **ve výchozím stavu vypnutý** z bezpečnostních důvodů — sandbox běží s `--dangerously-skip-permissions`, takže Claude by měl neomezený přístup k tvým SSH klíčům. Zapni jen když potřebuješ:
+
+```bash
+# Zapnout SSH pro tuto session
+CLAUDE_SSH=1 claude-sandbox
+
+# Nebo zapnout trvale v konfiguraci
+# Uprav ~/.claude-sandbox/config → CLAUDE_SSH="1"
+```
+
+Ujisti se, že na hostu běží SSH agent:
 
 ```bash
 eval "$(ssh-agent -s)"
 ssh-add ~/.ssh/id_ed25519
 ```
-
-Sandbox automaticky předá SSH agenta do kontejneru.
 
 ## Co je v kontejneru
 
