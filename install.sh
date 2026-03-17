@@ -27,6 +27,9 @@ ok()    { echo -e "${GREEN}[OK]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 err()   { echo -e "${RED}[ERROR]${NC} $*"; }
 
+# Read from terminal even when piped (curl | bash)
+prompt() { read -rp "$1" "$2" </dev/tty; }
+
 # --- Detect OS ---
 
 OS="$(uname -s)"
@@ -75,7 +78,7 @@ if [ "$PLATFORM" = "linux" ]; then
   if ! groups | grep -qw docker; then
     warn "Your user is not in the 'docker' group."
     echo "  This may require running docker with sudo."
-    read -rp "  Add $USER to docker group now? [Y/n]: " choice
+    prompt "  Add $USER to docker group now? [Y/n]: " choice
     if [[ ! "$choice" =~ ^[Nn] ]]; then
       sudo usermod -aG docker "$USER"
       ok "Added $USER to docker group. You may need to log out and back in."
@@ -142,7 +145,7 @@ else
     if [ -f "$RC_FILE" ] && grep -qF '/usr/local/bin' "$RC_FILE"; then
       warn "Found /usr/local/bin reference in $RC_FILE but it's not active. Restart your shell."
     else
-      read -rp "  Add /usr/local/bin to PATH in $RC_FILE? [Y/n]: " choice
+      prompt "  Add /usr/local/bin to PATH in $RC_FILE? [Y/n]: " choice
       if [[ ! "$choice" =~ ^[Nn] ]]; then
         echo "" >> "$RC_FILE"
         echo "# Added by claude-sandbox installer" >> "$RC_FILE"
@@ -197,7 +200,7 @@ configure_sandbox() {
   echo "     host  = shared network, dev servers accessible from browser"
   echo "     none  = fully offline, maximum isolation"
   echo ""
-  read -rp "     Network mode [host/none] (current: $cfg_network): " input
+  prompt "     Network mode [host/none] (current: $cfg_network): " input
   cfg_network="${input:-$cfg_network}"
 
   # --- Memory ---
@@ -205,7 +208,7 @@ configure_sandbox() {
   echo "  2) Memory limit"
   echo "     How much RAM the container can use (e.g. 4g, 8g, 16g)"
   echo ""
-  read -rp "     Memory limit (current: $cfg_memory): " input
+  prompt "     Memory limit (current: $cfg_memory): " input
   cfg_memory="${input:-$cfg_memory}"
 
   # --- CPUs ---
@@ -213,7 +216,7 @@ configure_sandbox() {
   echo "  3) CPU limit"
   echo "     Number of CPU cores for the container"
   echo ""
-  read -rp "     CPU cores (current: $cfg_cpus): " input
+  prompt "     CPU cores (current: $cfg_cpus): " input
   cfg_cpus="${input:-$cfg_cpus}"
 
   # --- Git safety net ---
@@ -222,7 +225,7 @@ configure_sandbox() {
   echo "     1 = Claude works in an isolated worktree, your project stays untouched"
   echo "     0 = Claude edits your project directly"
   echo ""
-  read -rp "     Git safety net [1/0] (current: $cfg_git): " input
+  prompt "     Git safety net [1/0] (current: $cfg_git): " input
   cfg_git="${input:-$cfg_git}"
 
   # --- Deny git writes ---
@@ -231,7 +234,7 @@ configure_sandbox() {
   echo "     1 = block commit, push, reset etc. inside container"
   echo "     0 = allow all git operations"
   echo ""
-  read -rp "     Deny git writes [1/0] (current: $cfg_deny_git): " input
+  prompt "     Deny git writes [1/0] (current: $cfg_deny_git): " input
   cfg_deny_git="${input:-$cfg_deny_git}"
 
   # --- Extra mounts ---
@@ -240,7 +243,7 @@ configure_sandbox() {
   echo "     Comma-separated, e.g.: /data/shared:/data/shared:ro,/mnt:/mnt"
   echo "     Leave empty for none."
   echo ""
-  read -rp "     Extra mounts (current: ${cfg_mounts:-none}): " input
+  prompt "     Extra mounts (current: ${cfg_mounts:-none}): " input
   cfg_mounts="${input:-$cfg_mounts}"
 
   # --- Write config ---
@@ -275,7 +278,7 @@ CONF
 
 # Ask user if they want to configure
 echo ""
-read -rp "Configure sandbox defaults now? [Y/n]: " do_config
+prompt "Configure sandbox defaults now? [Y/n]: " do_config
 if [[ ! "$do_config" =~ ^[Nn] ]]; then
   configure_sandbox
 else
