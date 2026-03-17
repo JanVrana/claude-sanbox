@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [],
+    "deny": []
+  },
+  "plugins": [
+    "feature-dev@claude-plugins-official",
+    "code-review@claude-plugins-official",
+    "context7@claude-plugins-official",
+    "superpowers@claude-plugins-official",
+    "code-simplifier@claude-plugins-official",
+    "claude-md-management@claude-plugins-official"
+  ]
+}

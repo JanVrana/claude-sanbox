@@ -86,6 +86,7 @@ claude-sandbox -p "create a REST API for user management"
 | `CLAUDE_MEMORY` | `8g` | Container RAM limit |
 | `CLAUDE_CPUS` | `4` | Container CPU limit |
 | `CLAUDE_GIT` | `1` | Git safety net: `1` enabled, `0` disabled |
+| `CLAUDE_DENY_GIT` | `0` | Deny git write operations inside container: `1` deny, `0` allow |
 | `CLAUDE_MOUNTS` | _(empty)_ | Extra bind mounts, comma-separated (see below) |
 
 ```bash
@@ -97,6 +98,9 @@ CLAUDE_MEMORY=16g CLAUDE_CPUS=5 claude-sandbox
 
 # Skip git safety net
 CLAUDE_GIT=0 claude-sandbox
+
+# Deny git write operations (commit, push, reset, etc.)
+CLAUDE_DENY_GIT=1 claude-sandbox
 
 # Combine options
 CLAUDE_GIT=0 CLAUDE_NETWORK=none CLAUDE_MEMORY=4g claude-sandbox
@@ -132,31 +136,31 @@ GIT_ENABLED="${CLAUDE_GIT:-1}"
 
 The value after `:-` is the default, which can be overridden by the environment variable.
 
-## Git Safety Net
+## Git Safety Net (Worktree)
 
-When enabled (`CLAUDE_GIT=1`, default):
+When enabled (`CLAUDE_GIT=1`, default), the sandbox uses **git worktrees** to isolate Claude's work from your project:
 
 **Before Claude starts:**
 - Initializes a git repo if one doesn't exist
-- Stashes uncommitted changes
-- Creates a backup branch `claude-sandbox-backup/<timestamp>`
+- Creates a worktree at `.claude-worktree` on a new branch `claude-sandbox/<timestamp>`
+- If a worktree already exists, offers to continue or replace it
+- Your original project directory stays untouched — Claude works in the worktree
 
 **After Claude finishes:**
 - Shows a summary of all changes Claude made
 - Presents an interactive menu:
-  1. **Accept** — commit changes (with AI-generated commit message)
-  2. **View diff** — inspect changes in detail, then accept/revert
-  3. **Revert all** — discard all changes
-  4. **Leave as-is** — keep changes in working directory for manual review
+  1. **View diff** — side-by-side diff (using `delta` if available)
+  2. **Copy changes** — `rsync` files from worktree to your project (excluding `.git`)
+  3. **Merge branch** — `git merge claude-sandbox/<ts>` into your main branch
+  4. **Keep worktree** — leave it for later, resume with `claude-sandbox -r`
+  5. **Delete worktree** — discard all changes and remove the branch
 
-**Manual rollback at any time:**
+**Manual cleanup at any time:**
 
 ```bash
-# Reset to backup
-git reset --hard claude-sandbox-backup/<timestamp>
-
-# Restore stashed changes
-git stash pop
+# Remove worktree and branch
+git worktree remove .claude-worktree
+git branch -D claude-sandbox/<timestamp>
 ```
 
 ## Web Development
@@ -186,6 +190,8 @@ The sandbox automatically forwards the SSH agent into the container.
 - **TypeScript**, ts-node, ESLint, Prettier, nodemon
 - **Python 3** + pip
 - Git, curl, wget, jq, build-essential
+- **Bundled slash commands** — `/feature` (guided feature development) and `/handoff` (session handoff notes)
+- **Pre-configured plugins** — feature-dev, code-review, context7, superpowers, code-simplifier, claude-md-management
 
 ## Persistent Data
 
@@ -232,6 +238,11 @@ The container runs under your UID/GID, so permissions should match. If not, chec
 claude-sandbox/
 ├── Dockerfile           # Docker image with dev tools
 ├── claude-sandbox.sh    # Launcher script
+├── commands/            # Bundled slash commands
+│   ├── feature.md       # /feature — guided feature development
+│   └── handoff.md       # /handoff — session handoff notes
+├── default-settings.json # Default settings with plugins
+├── .gitignore           # Excludes .claude-worktree
 └── README.cs.md         # Documentation (Czech)
 ```
 

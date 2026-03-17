@@ -85,6 +85,7 @@ claude-sandbox -p "vytvoř REST API pro správu uživatelů"
 | `CLAUDE_MEMORY` | `8g` | Limit RAM pro kontejner |
 | `CLAUDE_CPUS` | `4` | Limit CPU jader |
 | `CLAUDE_GIT` | `1` | Git safety net: `1` zapnuto, `0` vypnuto |
+| `CLAUDE_DENY_GIT` | `0` | Zakáže git zápisy v kontejneru: `1` zakázat, `0` povolit |
 | `CLAUDE_MOUNTS` | _(prázdné)_ | Extra bind mounty, oddělené čárkou (viz níže) |
 
 ```bash
@@ -96,6 +97,9 @@ CLAUDE_MEMORY=16g CLAUDE_CPUS=5 claude-sandbox
 
 # Bez git zálohy
 CLAUDE_GIT=0 claude-sandbox
+
+# Zakázat git zápisy (commit, push, reset, atd.)
+CLAUDE_DENY_GIT=1 claude-sandbox
 
 # Kombinace
 CLAUDE_GIT=0 CLAUDE_NETWORK=none CLAUDE_MEMORY=4g claude-sandbox
@@ -131,31 +135,31 @@ GIT_ENABLED="${CLAUDE_GIT:-1}"
 
 Hodnota za `:-` je výchozí, kterou lze přepsat env proměnnou.
 
-## Git safety net
+## Git safety net (Worktree)
 
-Pokud je zapnutý (`CLAUDE_GIT=1`, default):
+Pokud je zapnutý (`CLAUDE_GIT=1`, default), sandbox používá **git worktrees** k izolaci práce Claude od tvého projektu:
 
 **Před spuštěním:**
 - Inicializuje git repo pokud neexistuje
-- Zastashuje neuložené změny
-- Vytvoří záložní branch `claude-sandbox-backup/<timestamp>`
+- Vytvoří worktree v `.claude-worktree` na nové branch `claude-sandbox/<timestamp>`
+- Pokud worktree už existuje, nabídne pokračovat nebo vytvořit nový
+- Tvůj originální projekt zůstane nedotčený — Claude pracuje ve worktree
 
 **Po skončení:**
 - Zobrazí přehled změn které Claude provedl
 - Nabídne interaktivní menu:
-  1. **Přijmout** — commitne změny (s AI-generovanou commit message)
-  2. **Zobrazit diff** — detailní náhled změn, pak přijmout/vrátit
-  3. **Vrátit vše** — zahodí všechny změny
-  4. **Nechat** — ponechá změny v working directory k ruční kontrole
+  1. **Zobrazit diff** — side-by-side diff (pomocí `delta` pokud je k dispozici)
+  2. **Kopírovat změny** — `rsync` souborů z worktree do projektu (bez `.git`)
+  3. **Mergovat branch** — `git merge claude-sandbox/<ts>` do hlavní branch
+  4. **Nechat worktree** — ponechat k pozdějšímu pokračování přes `claude-sandbox -r`
+  5. **Smazat worktree** — zahodit změny a smazat branch
 
-**Ruční návrat kdykoliv:**
+**Ruční cleanup kdykoliv:**
 
 ```bash
-# Vrátit na zálohu
-git reset --hard claude-sandbox-backup/<timestamp>
-
-# Obnovit zastashované změny
-git stash pop
+# Smazat worktree a branch
+git worktree remove .claude-worktree
+git branch -D claude-sandbox/<timestamp>
 ```
 
 ## Web development
@@ -185,6 +189,8 @@ Sandbox automaticky předá SSH agenta do kontejneru.
 - **TypeScript**, ts-node, ESLint, Prettier, nodemon
 - **Python 3** + pip
 - Git, curl, wget, jq, build-essential
+- **Předpřipravené slash commands** — `/feature` (řízený vývoj funkce) a `/handoff` (poznámky k předání práce)
+- **Předkonfigurované pluginy** — feature-dev, code-review, context7, superpowers, code-simplifier, claude-md-management
 
 ## Persistentní data
 
@@ -231,5 +237,10 @@ Kontejner běží pod tvým UID/GID, takže by práva měla sedět. Pokud ne, zk
 claude-sandbox/
 ├── Dockerfile           # Docker image s nástroji
 ├── claude-sandbox.sh    # Spouštěcí script
+├── commands/            # Předpřipravené slash commands
+│   ├── feature.md       # /feature — řízený vývoj funkce
+│   └── handoff.md       # /handoff — poznámky k předání práce
+├── default-settings.json # Výchozí nastavení s pluginy
+├── .gitignore           # Vylučuje .claude-worktree
 └── README.md
 ```

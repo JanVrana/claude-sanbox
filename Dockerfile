@@ -31,6 +31,12 @@ RUN apt-get update && apt-get install -y \
 # fdfind → fd symlink (Debian package is named fd-find)
 RUN ln -s $(which fdfind) /usr/local/bin/fd
 
+# Delta — beautiful git diff viewer (side-by-side diffs)
+RUN ARCH=$(dpkg --print-architecture) && \
+    curl -fsSL "https://github.com/dandavison/delta/releases/download/0.18.2/git-delta_0.18.2_${ARCH}.deb" \
+      -o /tmp/delta.deb && \
+    dpkg -i /tmp/delta.deb && rm /tmp/delta.deb
+
 # Go (latest stable)
 RUN curl -fsSL https://go.dev/dl/go1.23.6.linux-amd64.tar.gz | tar -C /usr/local -xz
 ENV PATH="/usr/local/go/bin:/root/go/bin:${PATH}"
@@ -56,6 +62,9 @@ RUN npm i -g \
 
 # Claude Code
 RUN npm i -g @anthropic-ai/claude-code
+
+COPY commands/ /etc/claude-commands/
+COPY default-settings.json /etc/claude-defaults/settings.json
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh

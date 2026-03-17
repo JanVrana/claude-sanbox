@@ -12,6 +12,7 @@
 #   CLAUDE_MEMORY=8g            # default: 8g
 #   CLAUDE_CPUS=4               # default: 4
 #   CLAUDE_GIT=1|0              # default: 1 (git safety net enabled)
+#   CLAUDE_DENY_GIT=1|0          # default: 0 (deny git write operations)
 #   CLAUDE_MOUNTS="/data:/data:ro,/mnt/shared:/mnt/shared"
 #                               # extra bind mounts (comma-separated)
 
@@ -43,9 +44,12 @@ fi
 # Create empty .claude.json if it still doesn't exist
 [ ! -f ~/.claude.json ] && echo '{}' > ~/.claude.json
 
-# === Git safety net (optional) ===
-BACKUP_BRANCH=""
+# === Git safety net: worktree approach ===
+WORKTREE_DIR="$PROJECT_DIR/.claude-worktree"
+WORKTREE_BRANCH=""
+
 if [ "$GIT_ENABLED" = "1" ]; then
+  # Initialize git repo if it doesn't exist
   if [ ! -d "$PROJECT_DIR/.git" ]; then
     echo "📁 Git repo not found — initializing..."
     cd "$PROJECT_DIR"
@@ -54,18 +58,26 @@ if [ "$GIT_ENABLED" = "1" ]; then
     git commit -m "init: state before Claude Code" --allow-empty
   fi
 
-  if [ -d "$PROJECT_DIR/.git" ]; then
-    cd "$PROJECT_DIR"
-    if ! git diff --quiet HEAD 2>/dev/null || ! git diff --cached --quiet HEAD 2>/dev/null; then
-      TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-      git stash push -m "claude-sandbox-backup-$TIMESTAMP" --include-untracked
-      echo "⚠️  Unsaved changes stashed: claude-sandbox-backup-$TIMESTAMP"
-      echo "   Restore: git stash pop"
+  cd "$PROJECT_DIR"
+
+  # Detect existing worktree
+  if [ -d "$WORKTREE_DIR" ]; then
+    WORKTREE_BRANCH=$(git -C "$WORKTREE_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+    echo "📂 Found existing worktree (branch: $WORKTREE_BRANCH)"
+    read -rp "   Continue in existing worktree? [Y/n]: " choice
+    if [[ "$choice" =~ ^[Nn] ]]; then
+      git worktree remove --force "$WORKTREE_DIR" 2>/dev/null || rm -rf "$WORKTREE_DIR"
+      [ -n "$WORKTREE_BRANCH" ] && git branch -D "$WORKTREE_BRANCH" 2>/dev/null || true
+      WORKTREE_BRANCH=""
     fi
-    BACKUP_BRANCH="claude-sandbox-backup/$(date +%Y%m%d_%H%M%S)"
-    git branch "$BACKUP_BRANCH" HEAD 2>/dev/null || true
-    echo "🔒 Backup created: $BACKUP_BRANCH"
-    echo "   Revert: git reset --hard $BACKUP_BRANCH"
+  fi
+
+  # Create new worktree if it doesn't exist
+  if [ ! -d "$WORKTREE_DIR" ]; then
+    TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+    WORKTREE_BRANCH="claude-sandbox/$TIMESTAMP"
+    git worktree add "$WORKTREE_DIR" -b "$WORKTREE_BRANCH"
+    echo "🌿 Worktree created: .claude-worktree (branch: $WORKTREE_BRANCH)"
   fi
 else
   echo "ℹ️  Git safety net disabled (CLAUDE_GIT=0)"
@@ -78,6 +90,7 @@ DOCKER_ARGS=(
   -e HOST_GID="$(id -g)"
   -e HOST_USER="$(id -un)"
   -e HOST_HOME="$HOME_DIR"
+  -e CLAUDE_DENY_GIT="${CLAUDE_DENY_GIT:-0}"
   -e GOPATH="$HOME_DIR/go"
   -e PATH="$HOME_DIR/go/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
   --tmpfs "$HOME_DIR":uid="$(id -u)"
@@ -108,12 +121,15 @@ DOCKER_ARGS=(
   -v "$SANDBOX_DATA/npm":"$HOME_DIR/.npm"
   -v "$SANDBOX_DATA/pip":"$HOME_DIR/.cache/pip"
   -v "$SANDBOX_DATA/cache":"$HOME_DIR/.cache"
-
-  # Project - same path as on host for session history consistency
-  -v "$PROJECT_DIR":"$PROJECT_DIR"
-  -w "$PROJECT_DIR"
-
 )
+
+# Project mount: worktree or direct
+if [ -d "$WORKTREE_DIR" ]; then
+  # Mount worktree in place of project — Claude sees no difference
+  DOCKER_ARGS+=(-v "$WORKTREE_DIR":"$PROJECT_DIR" -w "$PROJECT_DIR")
+else
+  DOCKER_ARGS+=(-v "$PROJECT_DIR":"$PROJECT_DIR" -w "$PROJECT_DIR")
+fi
 
 # Extra user-defined mounts (comma-separated, e.g. "/data:/data:ro,/mnt:/mnt")
 if [ -n "${CLAUDE_MOUNTS:-}" ]; then
@@ -136,6 +152,11 @@ fi
 
 GIT_STATUS="enabled"
 [ "$GIT_ENABLED" != "1" ] && GIT_STATUS="disabled"
+DENY_GIT_STATUS="off"
+[ "${CLAUDE_DENY_GIT:-0}" = "1" ] && DENY_GIT_STATUS="on"
+
+WORKTREE_INFO=""
+[ -n "$WORKTREE_BRANCH" ] && WORKTREE_INFO=" (branch: $WORKTREE_BRANCH)"
 
 echo "╔══════════════════════════════════════╗"
 echo "║       Claude Code Sandbox            ║"
@@ -145,100 +166,105 @@ echo "║ Network:  $NETWORK"
 echo "║ Memory:   $MEMORY | CPU: $CPUS"
 echo "║ Cache:    $SANDBOX_DATA"
 echo "║ Git:      $GIT_STATUS"
+echo "║ Deny git: $DENY_GIT_STATUS"
+[ -n "$WORKTREE_BRANCH" ] && echo "║ Worktree: .claude-worktree$WORKTREE_INFO"
 echo "╚══════════════════════════════════════╝"
 
 docker run "${DOCKER_ARGS[@]}" claude-sandbox "$@"
 
-# === After exit: show what Claude changed ===
-if [ "$GIT_ENABLED" = "1" ] && [ -d "$PROJECT_DIR/.git" ]; then
+# === After exit: worktree review menu ===
+if [ "$GIT_ENABLED" = "1" ] && [ -d "$WORKTREE_DIR" ] && [ -n "$WORKTREE_BRANCH" ]; then
   cd "$PROJECT_DIR"
-  CHANGES=$(git diff --stat 2>/dev/null)
-  NEW_FILES=$(git ls-files --others --exclude-standard 2>/dev/null)
-  if [ -n "$CHANGES" ] || [ -n "$NEW_FILES" ]; then
+  MAIN_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
+
+  # Check if there are any changes in the worktree branch
+  DIFF_STAT=$(git diff --stat "$MAIN_BRANCH"..."$WORKTREE_BRANCH" 2>/dev/null || true)
+  COMMIT_COUNT=$(git rev-list --count "$MAIN_BRANCH".."$WORKTREE_BRANCH" 2>/dev/null || echo "0")
+
+  if [ -n "$DIFF_STAT" ] || [ "$COMMIT_COUNT" -gt 0 ] 2>/dev/null; then
     echo ""
-    echo "📋 Claude made the following changes:"
+    echo "📋 Claude made changes in worktree (branch: $WORKTREE_BRANCH)"
+    echo "   $COMMIT_COUNT commit(s)"
     echo "─────────────────────────────"
-    [ -n "$CHANGES" ] && echo "$CHANGES"
-    [ -n "$NEW_FILES" ] && echo -e "\nNew files:\n$NEW_FILES"
+    [ -n "$DIFF_STAT" ] && echo "$DIFF_STAT"
     echo "─────────────────────────────"
     echo ""
-    echo "What would you like to do?"
-    echo "  1) ✅ Accept changes (commit)"
-    echo "  2) 👀 Show detailed diff"
-    echo "  3) ↩️  Revert all changes"
-    echo "  4) 🚪 Leave as is (decide later)"
-    echo ""
-    read -rp "Choice [1-4]: " choice
-    case $choice in
-      1)
-        echo "🤖 Generating commit message..."
-        SUGGESTED_MSG=$(git diff --stat 2>/dev/null; git diff --cached --stat 2>/dev/null; git ls-files --others --exclude-standard 2>/dev/null)
-        SUGGESTED_MSG=$(echo "$SUGGESTED_MSG" | head -20)
-        AUTO_MSG=$(docker run --rm \
-          -e HOST_UID="$(id -u)" \
-          -e HOST_GID="$(id -g)" \
-          -e HOST_USER="$(id -un)" \
-          -e HOST_HOME="$HOME_DIR" \
-          --tmpfs "$HOME_DIR":uid="$(id -u)" \
-          -v ~/.claude:"$HOME_DIR/.claude" \
-          -v ~/.claude.json:"$HOME_DIR/.claude.json" \
-          -v ~/.config:"$HOME_DIR/.config" \
-          --network "$NETWORK" \
-          claude-sandbox -p "Generate ONLY a one-line git commit message (English, max 72 chars, no quotes) for these changes: $SUGGESTED_MSG" 2>/dev/null | tail -1 || echo "")
-        [ -z "$AUTO_MSG" ] && AUTO_MSG="claude changes"
-        echo "📝 Suggested: $AUTO_MSG"
-        read -rp "Commit message [$AUTO_MSG]: " msg
-        msg="${msg:-$AUTO_MSG}"
-        git add -A && git commit -m "$msg"
-        echo "✅ Changes committed."
-        ;;
-      2)
-        git diff
-        git ls-files --others --exclude-standard
-        echo ""
-        read -rp "Accept these changes? [a/r/l] (accept/revert/leave): " choice2
-        case $choice2 in
-          a)
-            echo "🤖 Generating commit message..."
-            SUGGESTED_MSG=$(git diff --stat 2>/dev/null | head -20)
-            AUTO_MSG=$(docker run --rm \
-              -e HOST_UID="$(id -u)" \
-              -e HOST_GID="$(id -g)" \
-              -e HOST_USER="$(id -un)" \
-              -e HOST_HOME="$HOME_DIR" \
-              --tmpfs "$HOME_DIR":uid="$(id -u)" \
-              -v ~/.claude:"$HOME_DIR/.claude" \
-              -v ~/.claude.json:"$HOME_DIR/.claude.json" \
-              -v ~/.config:"$HOME_DIR/.config" \
-              --network "$NETWORK" \
-              claude-sandbox -p "Generate ONLY a one-line git commit message (English, max 72 chars, no quotes) for these changes: $SUGGESTED_MSG" 2>/dev/null | tail -1 || echo "")
-            [ -z "$AUTO_MSG" ] && AUTO_MSG="claude changes"
-            echo "📝 Suggested: $AUTO_MSG"
-            read -rp "Commit message [$AUTO_MSG]: " msg
-            msg="${msg:-$AUTO_MSG}"
-            git add -A && git commit -m "$msg"
-            echo "✅ Changes committed."
-            ;;
-          r)
-            git checkout . && git clean -fd
-            echo "↩️  Changes reverted to pre-Claude state."
-            ;;
-          *)
-            echo "🚪 Changes left in working directory."
-            ;;
-        esac
-        ;;
-      3)
-        git checkout . && git clean -fd
-        echo "↩️  Changes reverted to pre-Claude state."
-        ;;
-      *)
-        echo "🚪 Changes left in working directory."
-        [ -n "$BACKUP_BRANCH" ] && echo "   Backup: $BACKUP_BRANCH"
-        ;;
-    esac
+
+    while true; do
+      echo "What would you like to do?"
+      echo "  1) 👀 View diff (side-by-side)"
+      echo "  2) 📋 Copy changes to project (rsync)"
+      echo "  3) 🔀 Merge branch into project"
+      echo "  4) 🚪 Keep worktree (continue later)"
+      echo "  5) 🗑️  Delete worktree and discard changes"
+      echo ""
+      read -rp "Choice [1-5]: " choice
+
+      case $choice in
+        1)
+          # Show diff with delta if available, otherwise plain git diff
+          if command -v delta &>/dev/null; then
+            git diff "$MAIN_BRANCH"..."$WORKTREE_BRANCH" | delta --side-by-side
+          else
+            git diff "$MAIN_BRANCH"..."$WORKTREE_BRANCH"
+          fi
+          echo ""
+          # Loop back to menu
+          ;;
+        2)
+          echo "📋 Copying changes from worktree to project..."
+          rsync -a --exclude='.git' "$WORKTREE_DIR/" "$PROJECT_DIR/"
+          echo "✅ Changes copied to project directory."
+          read -rp "   Delete worktree now? [Y/n]: " del_choice
+          if [[ ! "$del_choice" =~ ^[Nn] ]]; then
+            git worktree remove --force "$WORKTREE_DIR" 2>/dev/null || rm -rf "$WORKTREE_DIR"
+            git branch -D "$WORKTREE_BRANCH" 2>/dev/null || true
+            echo "🗑️  Worktree removed."
+          fi
+          break
+          ;;
+        3)
+          echo "🔀 Merging branch $WORKTREE_BRANCH into $MAIN_BRANCH..."
+          git merge "$WORKTREE_BRANCH" --no-edit
+          if [ $? -eq 0 ]; then
+            echo "✅ Branch merged successfully."
+            read -rp "   Delete worktree now? [Y/n]: " del_choice
+            if [[ ! "$del_choice" =~ ^[Nn] ]]; then
+              git worktree remove --force "$WORKTREE_DIR" 2>/dev/null || rm -rf "$WORKTREE_DIR"
+              git branch -D "$WORKTREE_BRANCH" 2>/dev/null || true
+              echo "🗑️  Worktree removed."
+            fi
+          else
+            echo "⚠️  Merge conflicts detected. Resolve manually, then remove worktree:"
+            echo "   git worktree remove .claude-worktree && git branch -D $WORKTREE_BRANCH"
+          fi
+          break
+          ;;
+        4)
+          echo "🚪 Worktree preserved at: .claude-worktree"
+          echo "   Branch: $WORKTREE_BRANCH"
+          echo "   Resume: claude-sandbox -r"
+          break
+          ;;
+        5)
+          git worktree remove --force "$WORKTREE_DIR" 2>/dev/null || rm -rf "$WORKTREE_DIR"
+          git branch -D "$WORKTREE_BRANCH" 2>/dev/null || true
+          echo "🗑️  Worktree and branch deleted."
+          break
+          ;;
+        *)
+          echo "Invalid choice, please try again."
+          ;;
+      esac
+    done
   else
     echo ""
-    echo "ℹ️  Claude made no file changes."
+    echo "ℹ️  Claude made no changes."
+    read -rp "   Delete worktree? [Y/n]: " del_choice
+    if [[ ! "$del_choice" =~ ^[Nn] ]]; then
+      git worktree remove --force "$WORKTREE_DIR" 2>/dev/null || rm -rf "$WORKTREE_DIR"
+      git branch -D "$WORKTREE_BRANCH" 2>/dev/null || true
+      echo "🗑️  Worktree removed."
+    fi
   fi
 fi
