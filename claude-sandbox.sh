@@ -217,16 +217,23 @@ if [ "$GIT_ENABLED" = "1" ] && [ -d "$WORKTREE_DIR" ] && [ -n "$WORKTREE_BRANCH"
   cd "$PROJECT_DIR"
   MAIN_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main")
 
-  # Check if there are any changes in the worktree branch
+  # Check for committed changes (branch diff) AND uncommitted changes in worktree
   DIFF_STAT=$(git diff --stat "$MAIN_BRANCH"..."$WORKTREE_BRANCH" 2>/dev/null || true)
   COMMIT_COUNT=$(git rev-list --count "$MAIN_BRANCH".."$WORKTREE_BRANCH" 2>/dev/null || echo "0")
+  UNCOMMITTED=$(git -C "$WORKTREE_DIR" status --porcelain 2>/dev/null || true)
 
-  if [ -n "$DIFF_STAT" ] || [ "$COMMIT_COUNT" -gt 0 ] 2>/dev/null; then
+  if [ -n "$DIFF_STAT" ] || [ "$COMMIT_COUNT" -gt 0 ] 2>/dev/null || [ -n "$UNCOMMITTED" ]; then
     echo ""
     echo "📋 Claude made changes in worktree (branch: $WORKTREE_BRANCH)"
-    echo "   $COMMIT_COUNT commit(s)"
+    [ "$COMMIT_COUNT" -gt 0 ] 2>/dev/null && echo "   $COMMIT_COUNT commit(s)"
+    [ -n "$UNCOMMITTED" ] && echo "   + uncommitted changes"
     echo "─────────────────────────────"
     [ -n "$DIFF_STAT" ] && echo "$DIFF_STAT"
+    if [ -n "$UNCOMMITTED" ]; then
+      [ -n "$DIFF_STAT" ] && echo ""
+      echo "Uncommitted:"
+      echo "$UNCOMMITTED"
+    fi
     echo "─────────────────────────────"
     echo ""
 
@@ -242,11 +249,33 @@ if [ "$GIT_ENABLED" = "1" ] && [ -d "$WORKTREE_DIR" ] && [ -n "$WORKTREE_BRANCH"
 
       case $choice in
         1)
-          # Show diff with delta if available, otherwise plain git diff
-          if command -v delta &>/dev/null; then
-            git diff "$MAIN_BRANCH"..."$WORKTREE_BRANCH" | delta --side-by-side
-          else
-            git diff "$MAIN_BRANCH"..."$WORKTREE_BRANCH"
+          # Show committed diff between branches
+          if [ -n "$DIFF_STAT" ]; then
+            echo "=== Committed changes (branch diff) ==="
+            if command -v delta &>/dev/null; then
+              git diff "$MAIN_BRANCH"..."$WORKTREE_BRANCH" | delta --side-by-side
+            else
+              git diff "$MAIN_BRANCH"..."$WORKTREE_BRANCH"
+            fi
+          fi
+          # Show uncommitted changes in worktree
+          if [ -n "$UNCOMMITTED" ]; then
+            echo ""
+            echo "=== Uncommitted changes in worktree ==="
+            if command -v delta &>/dev/null; then
+              git -C "$WORKTREE_DIR" diff | delta --side-by-side
+              git -C "$WORKTREE_DIR" diff --cached | delta --side-by-side
+            else
+              git -C "$WORKTREE_DIR" diff
+              git -C "$WORKTREE_DIR" diff --cached
+            fi
+            # Show untracked files
+            UNTRACKED=$(git -C "$WORKTREE_DIR" ls-files --others --exclude-standard 2>/dev/null || true)
+            if [ -n "$UNTRACKED" ]; then
+              echo ""
+              echo "Untracked files:"
+              echo "$UNTRACKED"
+            fi
           fi
           echo ""
           # Loop back to menu
