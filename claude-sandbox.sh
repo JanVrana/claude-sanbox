@@ -22,12 +22,26 @@ PROJECT_DIR="$(pwd)"
 HOME_DIR="$HOME"
 SANDBOX_DATA="$HOME/.claude-sandbox"
 
-# Load saved configuration (env variables still override)
+# Load saved configuration (env variables from command line take precedence)
 if [ -f "$SANDBOX_DATA/config" ]; then
-  set -a
+  # Save env vars set by the user before loading config
+  [ -n "${CLAUDE_NETWORK+x}" ]  && _user_network="$CLAUDE_NETWORK"
+  [ -n "${CLAUDE_MEMORY+x}" ]   && _user_memory="$CLAUDE_MEMORY"
+  [ -n "${CLAUDE_CPUS+x}" ]     && _user_cpus="$CLAUDE_CPUS"
+  [ -n "${CLAUDE_GIT+x}" ]      && _user_git="$CLAUDE_GIT"
+  [ -n "${CLAUDE_DENY_GIT+x}" ] && _user_deny_git="$CLAUDE_DENY_GIT"
+  [ -n "${CLAUDE_MOUNTS+x}" ]   && _user_mounts="$CLAUDE_MOUNTS"
+
   # shellcheck disable=SC1091
   source "$SANDBOX_DATA/config"
-  set +a
+
+  # Restore user's env vars (env > config)
+  [ -n "${_user_network+x}" ]  && CLAUDE_NETWORK="$_user_network"
+  [ -n "${_user_memory+x}" ]   && CLAUDE_MEMORY="$_user_memory"
+  [ -n "${_user_cpus+x}" ]     && CLAUDE_CPUS="$_user_cpus"
+  [ -n "${_user_git+x}" ]      && CLAUDE_GIT="$_user_git"
+  [ -n "${_user_deny_git+x}" ] && CLAUDE_DENY_GIT="$_user_deny_git"
+  [ -n "${_user_mounts+x}" ]   && CLAUDE_MOUNTS="$_user_mounts"
 fi
 
 # Configuration with defaults (env > config > hardcoded)
@@ -86,11 +100,11 @@ if [ "$GIT_ENABLED" = "1" ]; then
     WORKTREE_BRANCH="claude-sandbox/$TIMESTAMP"
     git worktree add "$WORKTREE_DIR" -b "$WORKTREE_BRANCH"
 
-    # Copy uncommitted changes (modified, staged, untracked) into the worktree
+    # Mirror working directory state into worktree (including uncommitted changes)
     if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
       echo "📋 Copying uncommitted changes to worktree..."
-      rsync -a --exclude='.git' --exclude='.claude-worktree' "$PROJECT_DIR/" "$WORKTREE_DIR/"
-      echo "✅ Uncommitted changes included in worktree."
+      rsync -a --delete --exclude='.git' --exclude='.claude-worktree' "$PROJECT_DIR/" "$WORKTREE_DIR/"
+      echo "✅ Worktree matches your working directory."
     fi
 
     echo "🌿 Worktree created: .claude-worktree (branch: $WORKTREE_BRANCH)"

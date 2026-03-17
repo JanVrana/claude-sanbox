@@ -92,7 +92,11 @@ info "Setting up repository in $INSTALL_DIR ..."
 
 if [ -d "$INSTALL_DIR/.git" ]; then
   info "Repository already exists, pulling latest changes..."
-  git -C "$INSTALL_DIR" pull --ff-only
+  if ! git -C "$INSTALL_DIR" pull --ff-only 2>/dev/null; then
+    warn "Fast-forward pull failed. Re-cloning..."
+    rm -rf "$INSTALL_DIR"
+    git clone "$REPO_URL" "$INSTALL_DIR"
+  fi
   ok "Repository updated."
 else
   mkdir -p "$(dirname "$INSTALL_DIR")"
@@ -200,24 +204,36 @@ configure_sandbox() {
   echo "     host  = shared network, dev servers accessible from browser"
   echo "     none  = fully offline, maximum isolation"
   echo ""
-  prompt "     Network mode [host/none] (current: $cfg_network): " input
-  cfg_network="${input:-$cfg_network}"
+  while true; do
+    prompt "     Network mode [host/none] (current: $cfg_network): " input
+    input="${input:-$cfg_network}"
+    if [[ "$input" =~ ^(host|none)$ ]]; then cfg_network="$input"; break; fi
+    warn "     Invalid value. Enter 'host' or 'none'."
+  done
 
   # --- Memory ---
   echo ""
   echo "  2) Memory limit"
   echo "     How much RAM the container can use (e.g. 4g, 8g, 16g)"
   echo ""
-  prompt "     Memory limit (current: $cfg_memory): " input
-  cfg_memory="${input:-$cfg_memory}"
+  while true; do
+    prompt "     Memory limit (current: $cfg_memory): " input
+    input="${input:-$cfg_memory}"
+    if [[ "$input" =~ ^[0-9]+[gmGM]$ ]]; then cfg_memory="$input"; break; fi
+    warn "     Invalid value. Use format like 4g, 8g, 16g."
+  done
 
   # --- CPUs ---
   echo ""
   echo "  3) CPU limit"
   echo "     Number of CPU cores for the container"
   echo ""
-  prompt "     CPU cores (current: $cfg_cpus): " input
-  cfg_cpus="${input:-$cfg_cpus}"
+  while true; do
+    prompt "     CPU cores (current: $cfg_cpus): " input
+    input="${input:-$cfg_cpus}"
+    if [[ "$input" =~ ^[0-9]+$ ]] && [ "$input" -gt 0 ]; then cfg_cpus="$input"; break; fi
+    warn "     Invalid value. Enter a positive number."
+  done
 
   # --- Git safety net ---
   echo ""
@@ -225,8 +241,12 @@ configure_sandbox() {
   echo "     1 = Claude works in an isolated worktree, your project stays untouched"
   echo "     0 = Claude edits your project directly"
   echo ""
-  prompt "     Git safety net [1/0] (current: $cfg_git): " input
-  cfg_git="${input:-$cfg_git}"
+  while true; do
+    prompt "     Git safety net [1/0] (current: $cfg_git): " input
+    input="${input:-$cfg_git}"
+    if [[ "$input" =~ ^[01]$ ]]; then cfg_git="$input"; break; fi
+    warn "     Invalid value. Enter 1 or 0."
+  done
 
   # --- Deny git writes ---
   echo ""
@@ -234,8 +254,12 @@ configure_sandbox() {
   echo "     1 = block commit, push, reset etc. inside container"
   echo "     0 = allow all git operations"
   echo ""
-  prompt "     Deny git writes [1/0] (current: $cfg_deny_git): " input
-  cfg_deny_git="${input:-$cfg_deny_git}"
+  while true; do
+    prompt "     Deny git writes [1/0] (current: $cfg_deny_git): " input
+    input="${input:-$cfg_deny_git}"
+    if [[ "$input" =~ ^[01]$ ]]; then cfg_deny_git="$input"; break; fi
+    warn "     Invalid value. Enter 1 or 0."
+  done
 
   # --- Extra mounts ---
   echo ""
@@ -282,8 +306,8 @@ prompt "Configure sandbox defaults now? [Y/n]: " do_config
 if [[ ! "$do_config" =~ ^[Nn] ]]; then
   configure_sandbox
 else
-  info "Skipped. You can configure later by running: claude-sandbox --configure"
-  info "Or edit ~/.claude-sandbox/config manually."
+  info "Skipped. You can configure later by editing ~/.claude-sandbox/config"
+  info "Or re-run this installer."
 fi
 
 # --- 8. Auth reminder & finish ---
