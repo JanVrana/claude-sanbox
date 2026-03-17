@@ -295,9 +295,25 @@ if [ "$GIT_ENABLED" = "1" ] && [ -d "$WORKTREE_DIR" ] && [ -n "$WORKTREE_BRANCH"
         3)
           # Commit any uncommitted changes in worktree before merge
           if [ -n "$(git -C "$WORKTREE_DIR" status --porcelain 2>/dev/null)" ]; then
-            echo "📦 Committing uncommitted changes in worktree before merge..."
+            # Generate commit message from diff summary
+            CHANGED_FILES=$(git -C "$WORKTREE_DIR" diff --name-only HEAD 2>/dev/null || true)
+            UNTRACKED_FILES=$(git -C "$WORKTREE_DIR" ls-files --others --exclude-standard 2>/dev/null || true)
+            ALL_FILES=$(echo -e "${CHANGED_FILES}\n${UNTRACKED_FILES}" | sed '/^$/d' | sort -u)
+            FILE_COUNT=$(echo "$ALL_FILES" | wc -l | xargs)
+            SUGGESTED_MSG="Claude sandbox: update ${FILE_COUNT} file(s)"
+            echo ""
+            echo "📦 Uncommitted changes need to be committed before merge."
+            echo "   Files: $FILE_COUNT changed"
+            echo "$ALL_FILES" | head -10 | sed 's/^/     /'
+            [ "$(echo "$ALL_FILES" | wc -l)" -gt 10 ] && echo "     ... and more"
+            echo ""
+            echo "   Suggested commit message:"
+            echo "   $SUGGESTED_MSG"
+            echo ""
+            read -rp "   Edit message (Enter to accept): " user_msg
+            COMMIT_MSG="${user_msg:-$SUGGESTED_MSG}"
             git -C "$WORKTREE_DIR" add -A
-            git -C "$WORKTREE_DIR" commit -m "Uncommitted changes from Claude session"
+            git -C "$WORKTREE_DIR" commit -m "$COMMIT_MSG"
           fi
           echo "🔀 Merging branch $WORKTREE_BRANCH into $MAIN_BRANCH..."
           if git merge "$WORKTREE_BRANCH" --no-edit; then
