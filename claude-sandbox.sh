@@ -42,6 +42,7 @@ if [ -f "$SANDBOX_DATA/config" ]; then
   [ -n "${_user_git+x}" ]      && CLAUDE_GIT="$_user_git"
   [ -n "${_user_deny_git+x}" ] && CLAUDE_DENY_GIT="$_user_deny_git"
   [ -n "${_user_mounts+x}" ]   && CLAUDE_MOUNTS="$_user_mounts"
+  unset _user_network _user_memory _user_cpus _user_git _user_deny_git _user_mounts 2>/dev/null || true
 fi
 
 # Configuration with defaults (env > config > hardcoded)

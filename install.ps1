@@ -79,7 +79,7 @@ Write-Info "Running installation inside WSL2..."
 Write-Host ""
 
 # Download and run install.sh — two-step to preserve stdin for interactive prompts
-$installCmd = "curl -fsSL https://raw.githubusercontent.com/JanVrana/claude-sanbox/main/install.sh -o /tmp/claude-sandbox-install.sh && bash /tmp/claude-sandbox-install.sh"
+$installCmd = "curl -fsSL https://raw.githubusercontent.com/JanVrana/claude-sanbox/main/install.sh -o /tmp/claude-sandbox-install.sh && bash /tmp/claude-sandbox-install.sh; rm -f /tmp/claude-sandbox-install.sh"
 
 wsl -- bash -c $installCmd
 
