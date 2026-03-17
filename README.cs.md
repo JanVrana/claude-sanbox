@@ -12,6 +12,22 @@ Docker sandbox pro Claude Code — plnohodnotné CLI rozhraní bez otravných po
 - Sdílí přihlášení, sessions, SSH klíče a cache balíčků mezi spuštěními
 - Obsahuje Go, Node.js, TypeScript a běžné vývojářské nástroje
 
+## Rychlá instalace
+
+### Linux / macOS
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/JanVrana/claude-sanbox/main/install.sh | bash
+```
+
+### Windows (PowerShell + WSL2)
+
+```powershell
+irm https://raw.githubusercontent.com/JanVrana/claude-sanbox/main/install.ps1 | iex
+```
+
+Instalátor naklonuje repo, sestaví Docker image a nainstaluje launcher `claude-sandbox` do `/usr/local/bin/`.
+
 ## Požadavky
 
 - Docker
@@ -19,7 +35,7 @@ Docker sandbox pro Claude Code — plnohodnotné CLI rozhraní bez otravných po
 - Git (volitelné, pro safety net)
 - SSH agent (volitelné, pro git push)
 
-## Instalace
+## Manuální instalace
 
 ### 1. Přidej se do skupiny docker (bez sudo)
 
@@ -237,6 +253,8 @@ Kontejner běží pod tvým UID/GID, takže by práva měla sedět. Pokud ne, zk
 claude-sandbox/
 ├── Dockerfile           # Docker image s nástroji
 ├── claude-sandbox.sh    # Spouštěcí script
+├── install.sh           # One-liner instalátor (Linux/macOS)
+├── install.ps1          # One-liner instalátor (Windows/WSL2)
 ├── commands/            # Předpřipravené slash commands
 │   ├── feature.md       # /feature — řízený vývoj funkce
 │   └── handoff.md       # /handoff — poznámky k předání práce

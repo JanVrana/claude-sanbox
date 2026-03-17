@@ -13,6 +13,22 @@ A Docker sandbox for running Claude Code CLI without confirmation prompts, with 
 - Pre-installed Go, Node.js, TypeScript, and common development tools
 - Shared network — access dev servers from host browser
 
+## Quick Install
+
+### Linux / macOS
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/JanVrana/claude-sanbox/main/install.sh | bash
+```
+
+### Windows (PowerShell + WSL2)
+
+```powershell
+irm https://raw.githubusercontent.com/JanVrana/claude-sanbox/main/install.ps1 | iex
+```
+
+The installer clones the repo, builds the Docker image, and installs the `claude-sandbox` launcher into `/usr/local/bin/`.
+
 ## Requirements
 
 - Docker
@@ -20,7 +36,7 @@ A Docker sandbox for running Claude Code CLI without confirmation prompts, with 
 - Git (optional, for safety net)
 - SSH agent (optional, for git push)
 
-## Installation
+## Manual Installation
 
 ### 1. Add yourself to the docker group
 
@@ -238,6 +254,8 @@ The container runs under your UID/GID, so permissions should match. If not, chec
 claude-sandbox/
 ├── Dockerfile           # Docker image with dev tools
 ├── claude-sandbox.sh    # Launcher script
+├── install.sh           # One-liner installer (Linux/macOS)
+├── install.ps1          # One-liner installer (Windows/WSL2)
 ├── commands/            # Bundled slash commands
 │   ├── feature.md       # /feature — guided feature development
 │   └── handoff.md       # /handoff — session handoff notes

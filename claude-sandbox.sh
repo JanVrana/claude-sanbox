@@ -22,7 +22,15 @@ PROJECT_DIR="$(pwd)"
 HOME_DIR="$HOME"
 SANDBOX_DATA="$HOME/.claude-sandbox"
 
-# Configuration with defaults
+# Load saved configuration (env variables still override)
+if [ -f "$SANDBOX_DATA/config" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$SANDBOX_DATA/config"
+  set +a
+fi
+
+# Configuration with defaults (env > config > hardcoded)
 NETWORK="${CLAUDE_NETWORK:-host}"
 MEMORY="${CLAUDE_MEMORY:-8g}"
 CPUS="${CLAUDE_CPUS:-4}"
