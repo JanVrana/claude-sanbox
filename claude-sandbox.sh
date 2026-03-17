@@ -293,6 +293,12 @@ if [ "$GIT_ENABLED" = "1" ] && [ -d "$WORKTREE_DIR" ] && [ -n "$WORKTREE_BRANCH"
           break
           ;;
         3)
+          # Commit any uncommitted changes in worktree before merge
+          if [ -n "$(git -C "$WORKTREE_DIR" status --porcelain 2>/dev/null)" ]; then
+            echo "📦 Committing uncommitted changes in worktree before merge..."
+            git -C "$WORKTREE_DIR" add -A
+            git -C "$WORKTREE_DIR" commit -m "Uncommitted changes from Claude session"
+          fi
           echo "🔀 Merging branch $WORKTREE_BRANCH into $MAIN_BRANCH..."
           if git merge "$WORKTREE_BRANCH" --no-edit; then
             echo "✅ Branch merged successfully."
