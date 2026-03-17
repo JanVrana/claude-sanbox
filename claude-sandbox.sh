@@ -104,7 +104,7 @@ if [ "$GIT_ENABLED" = "1" ]; then
     # Mirror working directory state into worktree (including uncommitted changes)
     if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
       echo "📋 Copying uncommitted changes to worktree..."
-      rsync -a --delete --exclude='.git' --exclude='.claude-worktree' "$PROJECT_DIR/" "$WORKTREE_DIR/"
+      rsync -a --delete --exclude='.git' --exclude='.claude-worktree' --filter=':- .gitignore' "$PROJECT_DIR/" "$WORKTREE_DIR/"
       echo "✅ Worktree matches your working directory."
     fi
 
@@ -256,8 +256,7 @@ if [ "$GIT_ENABLED" = "1" ] && [ -d "$WORKTREE_DIR" ] && [ -n "$WORKTREE_BRANCH"
           ;;
         3)
           echo "🔀 Merging branch $WORKTREE_BRANCH into $MAIN_BRANCH..."
-          git merge "$WORKTREE_BRANCH" --no-edit
-          if [ $? -eq 0 ]; then
+          if git merge "$WORKTREE_BRANCH" --no-edit; then
             echo "✅ Branch merged successfully."
             read -rp "   Delete worktree now? [Y/n]: " del_choice
             if [[ ! "$del_choice" =~ ^[Nn] ]]; then
